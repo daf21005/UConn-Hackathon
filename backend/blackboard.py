@@ -38,7 +38,78 @@ def get_student_info(user_id):
         f"{BASE_URL}/learn/api/public/v1/users/{user_id}",
         headers=auth_header(token)
     )
+
+    if response.status_code != 200:
+        print(f"Student info error: {response.status_code} {response.text}")
+        return None
+    
     return response.json()
 
 
-# WIP
+def get_student_courses(user_id):
+    token = get_token()
+    if not token:
+        return None
+    
+    response = requests.get(
+        f"{BASE_URL}/learn/api/public/v1/users/{user_id}/courses",
+        headers=auth_header(token)
+    )
+
+    if response.status_code != 200:
+        print(f"Student courses error: {response.status_code} {response.text}")
+        return None
+
+    return response.json()
+
+def get_gradebook_columns(course_id):
+    token = get_token()
+    if not token:
+        return None
+    
+    response = requests.get(
+        f"{BASE_URL}/learn/api/public/v2/courses/{course_id}/gradebook/columns",
+        headers=auth_header(token),
+        params={
+            "fields": "id,name,displayName,score.possible,grading.due,availability.available"
+        }
+    )
+
+    # we get a back request or conflict
+    if response.status_code != 200:
+        print(f"Gradebook columns error: {response.status_code} {response.text}")
+        return None
+    
+    return response.json()
+
+def get_student_grade(course_id, column_id, user_id):
+    token = get_token()
+    if not token:
+        return None
+    
+    response = requests.get(
+        f"{BASE_URL}/learn/api/public/v2/courses/{course_id}/gradebook/columns/{column_id}/users/{user_id}",
+        headers=auth_header(token)
+    )
+
+    if response.status_code != 200:
+        print(f"Student grade error: {response.status_code} {response.text}")
+        return None
+    
+    return response.json()
+
+def get_overall_grade(course_id, user_id):
+    token = get_token()
+    if not token:
+        return None
+    
+    response = requests.get(
+        f"{BASE_URL}/learn/api/public/v2/courses/{course_id}/gradebook/users/{user_id}",
+        headers=auth_header(token)
+    )
+
+    if response.status_code != 200:
+        print(f"Overall grade error: {response.status_code} {response.text}")
+        return None
+    
+    return response.json()
