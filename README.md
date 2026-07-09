@@ -59,5 +59,8 @@ If this key is missing, core app pages still run, but AI parsing endpoints may n
 4. (Optional) Try syllabus upload and parsing if `GEMINI_API_KEY` is set.
 
 ## Notes
+- [BlackBoard API's](https://developer.blackboard.com/portal/displayApi)
 - The `final/` directory is the version intended for demos/testing.
 - Older iterations are in `backend/`, `frontend/`, and `old/` for reference.
+- The `backend/` main components are complete, currently using mock data (July 9, 2026)
+- The `frontend/` is still WIP
