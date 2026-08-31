@@ -1,8 +1,8 @@
-# SyllabusAI - Hackathon Project
+# SyllabusAI - Student Planning | Hackathon Project
 
 SyllabusAI is a work-in-progress student planning tool built to help organize coursework in one place. The app combines a FastAPI backend from BlackBoard with a Streamlit frontend to show courses, grades, GPA information, and assignment timelines in a simple dashboard. It also includes early support for syllabus upload and AI-based grading-scale parsing, plus mock data and placeholder integrations where the full product still needs to be finished.
 
-This is not the final product yet. The project is still being actively worked on, so some pieces are incomplete, mocked, or subject to change as development continues.
+This is not the final product yet. The project is still being actively worked on, so some pieces are incomplete, mocked, or subject to change as development continues. We created a version that can be used within the ```final/``` directory.
 
 ## What to run
 Use the app in `final/`:

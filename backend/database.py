@@ -120,7 +120,6 @@ def save_course_weights(course_id, category, weight_percentage, current_score):
     conn.commit()
     conn.close()
 
-# WIP
 # READ from the db
 def get_student(blackboard_id):
     conn = get_connection()
@@ -181,13 +180,3 @@ def get_course_weights(course_id):
     rows = cursor.fetchall()
     conn.close()
     return rows
-
-''' Hint:
-Inserting:
-INSERT INTO table_name (column1, column2, column3)
-VALUES (?, ?, ?)
-
-Selecting:
-SELECT * FROM table_name
-WHERE column_name = ?
-''' 

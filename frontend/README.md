@@ -1,4 +1,5 @@
 # SyllabusAI — Frontend
+### **Status: WIP**
 
 ## Run locally
 ```bash

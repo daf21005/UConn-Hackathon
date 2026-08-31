@@ -1,10 +1,12 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db, save_student, save_course, save_gpa_history, save_course_weights, get_student as db_get_student
-from google import genai
 from dotenv import load_dotenv
 import os, json
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from google import genai
+from google.genai import types
+from google.genai.errors import APIError
 
 from contextlib import asynccontextmanager
 
@@ -12,6 +14,14 @@ load_dotenv()
 
 class SyllabusText(BaseModel):
     text: str
+
+class GradeTier(BaseModel):
+    letter: str = Field(description="Letter grade, e.g., 'A', 'B+', 'Pass'")
+    min_pct: float = Field(description="Minimum percentage threshold")
+    max_pct: float = Field(description="Maximum percentage threshold")
+
+class SyllabusGradingScale(BaseModel):
+    grading_scale: list[GradeTier]
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -33,11 +43,10 @@ app.add_middleware(
 )
 
 
-# ── Mock data (replace with real DB queries when ready) ─────────────────────── DELETE
+# MOCK DATA - used for testing purposes
 
 MOCK_STUDENT = {"id": 1, "name": "John", "blackboard_id": "student_001"}
 
-# FIX 2: courses now include `assignments` array and `credits` for vGPA calc
 MOCK_COURSES = [
     {
         "id":1,
@@ -103,7 +112,12 @@ MOCK_GRADES = [
     {"course": "Linear Algebra",    "grade": "C",  "gpa": 2.0, "semester": "Spring 2026"},
 ]
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+"""
+Use this grading scale for reference when parsing syllabi with Gemini. The AI model may return inconsistent formats, so ensure the output matches expected letter grades and percentage thresholds.
+"Grading Scale: A: 93-100, A-: 90-92, B+: 87-89, B: 83-86, B-: 80-82, C+: 77-79, C: 73-76, C-: 70-72, D: 60-69, F: below 60"
+"""
+
+# ENDPOINTS
 
 @app.get("/")
 def root():
@@ -175,7 +189,6 @@ def calculate_gpa():
     total_credits = sum(c["credits"] for c in MOCK_COURSES)
     return {"gpa": round(total_points / total_credits, 2), "total_credits": total_credits}
 
-# FIX 5: add /api/upload so frontend file uploader has somewhere to POST
 @app.post("/api/upload")
 async def upload_syllabus(file: UploadFile = File(...)):
     contents = await file.read()
@@ -183,7 +196,8 @@ async def upload_syllabus(file: UploadFile = File(...)):
     return {"status": "ok", "filename": file.filename, "size_bytes": len(contents),
             "message": "File received. Connect to /api/syllabus/parse for AI extraction."}
 
-# FIX 6: corrected Gemini model name (gemini-3.1-flash does not exist)
+# bug: Gemini will return incorrect letter grade scale ex. "B plus", "B+\n", "B+\",""
+# solution: find a way to filter/validate the output to ensure it matches expected letter grades (A, A-, B+, etc.)
 @app.post("/api/syllabus/parse")
 async def parse_syllabus(payload: SyllabusText):
     api_key = os.getenv("GEMINI_API_KEY")
@@ -191,38 +205,39 @@ async def parse_syllabus(payload: SyllabusText):
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not set in .env")
 
     client = genai.Client(api_key=api_key)
-
-    prompt = """
-    Extract the grading scale from this syllabus.
-    Return JSON only, no explanation, no markdown, in this exact format:
-    {
-    "grading_scale": [
-        {"letter": "A",  "min": 90, "max": 100},
-        {"letter": "B",  "min": 80, "max": 89},
-        {"letter": "C",  "min": 70, "max": 79},
-        {"letter": "D",  "min": 60, "max": 69},
-        {"letter": "F",  "min": 0,  "max": 59}
-    ]
-    }
-    """
-    response = client.models.generate_content(
-    model="gemini-2.0-flash",
-    contents=[prompt, payload.text]
-    )
-    raw = response.text.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    # can change Gemini Flash model to any other available models
+    # currently set to latest model automatically updated by Google
+    target_model = "gemini-flash-latest"
 
     try:
-        parsed = json.loads(raw)
+        response = client.models.generate_content(
+            model=target_model,
+            contents=[
+                "Extract the complete letter grade scale and percentage thresholds from this syllabus text.",
+                payload.text
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=SyllabusGradingScale,
+            ),
+        )
 
-        # save each grading scale entry to course_weights
+        parsed = json.loads(response.text)
+
         for entry in parsed.get("grading_scale", []):
             save_course_weights(
-                course_id=1,              # placeholder until real course ids exist
+                course_id=1,
                 category=entry["letter"],
-                weight_percentage=entry["max"],
-                current_score=entry["min"]
+                weight_percentage=entry["max_pct"],
+                current_score=entry["min_pct"]
             )
 
-        return {"result": parsed}
-    except json.JSONDecodeError:
-        return {"error": "Failed to parse AI response", "raw": raw}
+        return {"status": "success", "result": parsed}
+
+    except APIError as e:
+        raise HTTPException(
+            status_code=e.code if e.code else 500,
+            detail=f"Gemini API Error ({e.code}): {e.message}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
